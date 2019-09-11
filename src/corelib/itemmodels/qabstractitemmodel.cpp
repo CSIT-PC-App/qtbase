@@ -901,6 +901,36 @@ void QAbstractItemModel::resetInternalData()
 
 }
 
+void QAbstractItemModel::setCustomChange(bool bInCustomChange)
+{
+	m_bInCustomChange = bInCustomChange;
+}
+
+bool QAbstractItemModel::getCustomChange()
+{
+	return m_bInCustomChange;
+}
+
+void QAbstractItemModel::customBeginInsertRows(const QModelIndex &parent, int first, int last)
+{
+	beginInsertRows(parent, first, last);
+}
+
+void QAbstractItemModel::customEndInsertRows()
+{
+	endInsertRows();
+}
+
+void QAbstractItemModel::customBeginRemoveRows(const QModelIndex &parent, int first, int last)
+{
+	beginRemoveRows(parent, first, last);
+}
+
+void QAbstractItemModel::customEndRemoveRows()
+{
+	endRemoveRows();
+}
+
 /*!
     \class QModelIndex
     \inmodule QtCore
@@ -1427,6 +1457,7 @@ void QAbstractItemModel::resetInternalData()
 */
 QAbstractItemModel::QAbstractItemModel(QObject *parent)
     : QObject(*new QAbstractItemModelPrivate, parent)
+	, m_bInCustomChange(false)
 {
 }
 
@@ -1435,6 +1466,7 @@ QAbstractItemModel::QAbstractItemModel(QObject *parent)
 */
 QAbstractItemModel::QAbstractItemModel(QAbstractItemModelPrivate &dd, QObject *parent)
     : QObject(dd, parent)
+	, m_bInCustomChange(false)
 {
 }
 

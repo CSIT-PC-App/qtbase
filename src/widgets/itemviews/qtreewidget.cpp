@@ -1495,12 +1495,12 @@ QTreeWidgetItem::~QTreeWidgetItem()
     if (par) {
         int i = par->children.indexOf(this);
         if (i >= 0) {
-            if (model) model->beginRemoveItems(par, i, 1);
+            if (model && !model->getCustomChange()) model->beginRemoveItems(par, i, 1);
             // users _could_ do changes when connected to rowsAboutToBeRemoved,
             // so we check again to make sure 'i' is valid
             if (!par->children.isEmpty() && par->children.at(i) == this)
                 par->children.takeAt(i);
-            if (model) model->endRemoveItems();
+            if (model && !model->getCustomChange()) model->endRemoveItems();
         }
     } else if (model) {
         if (this == model->headerItem) {
@@ -1508,12 +1508,18 @@ QTreeWidgetItem::~QTreeWidgetItem()
         } else {
             int i = model->rootItem->children.indexOf(this);
             if (i >= 0) {
-                model->beginRemoveItems(0, i, 1);
+				if (!model->getCustomChange())
+				{
+					model->beginRemoveItems(0, i, 1);
+				}
                 // users _could_ do changes when connected to rowsAboutToBeRemoved,
                 // so we check again to make sure 'i' is valid
                 if (!model->rootItem->children.isEmpty() && model->rootItem->children.at(i) == this)
                     model->rootItem->children.takeAt(i);
-                model->endRemoveItems();
+				if (!model->getCustomChange())
+				{
+					model->endRemoveItems();
+				}
             }
         }
     }
@@ -1916,7 +1922,11 @@ void QTreeWidgetItem::insertChild(int index, QTreeWidgetItem *child)
             if (!model->sortPendingTimer.isActive())
                 model->sortPendingTimer.start(0, model);
         }
-        model->beginInsertItems(this, index, 1);
+
+		if (!model->getCustomChange())
+		{
+			model->beginInsertItems(this, index, 1);
+		}
         int cols = model->columnCount();
         QStack<QTreeWidgetItem*> stack;
         stack.push(child);
@@ -1928,7 +1938,10 @@ void QTreeWidgetItem::insertChild(int index, QTreeWidgetItem *child)
                 stack.push(i->children.at(c));
         }
         children.insert(index, child);
-        model->endInsertItems();
+		if (!model->getCustomChange())
+		{
+			model->endInsertItems();
+		}
         model->skipPendingSort = wasSkipSort;
     } else {
         child->par = this;
@@ -1964,7 +1977,7 @@ QTreeWidgetItem *QTreeWidgetItem::takeChild(int index)
         model->executePendingSort();
     }
     if (index >= 0 && index < children.count()) {
-        if (model) model->beginRemoveItems(this, index, 1);
+        if (model && !model->getCustomChange()) model->beginRemoveItems(this, index, 1);
         QTreeWidgetItem *item = children.takeAt(index);
         item->par = 0;
         QStack<QTreeWidgetItem*> stack;
@@ -1976,7 +1989,7 @@ QTreeWidgetItem *QTreeWidgetItem::takeChild(int index)
                 stack.push(i->children.at(c));
         }
         d->propagateDisabled(item);
-        if (model) model->endRemoveRows();
+        if (model && !model->getCustomChange()) model->endRemoveRows();
         return item;
     }
     return 0;
@@ -2034,14 +2047,14 @@ void QTreeWidgetItem::insertChildren(int index, const QList<QTreeWidgetItem*> &c
             for (int c = 0; c < i->children.count(); ++c)
                 stack.push(i->children.at(c));
         }
-        if (model) model->beginInsertItems(this, index, itemsToInsert.count());
+        if (model && !model->getCustomChange()) model->beginInsertItems(this, index, itemsToInsert.count());
         for (int n = 0; n < itemsToInsert.count(); ++n) {
             QTreeWidgetItem *child = itemsToInsert.at(n);
             this->children.insert(index + n, child);
             if (child->par)
                 d->propagateDisabled(child);
         }
-        if (model) model->endInsertItems();
+        if (model && !model->getCustomChange()) model->endInsertItems();
     }
 }
 
@@ -2062,7 +2075,7 @@ QList<QTreeWidgetItem*> QTreeWidgetItem::takeChildren()
             // is updated in case we take an item that is selected.
             model->executePendingSort();
         }
-        if (model) model->beginRemoveItems(this, 0, children.count());
+        if (model && !model->getCustomChange()) model->beginRemoveItems(this, 0, children.count());
         for (int n = 0; n < children.count(); ++n) {
             QTreeWidgetItem *item = children.at(n);
             item->par = 0;
@@ -2078,7 +2091,7 @@ QList<QTreeWidgetItem*> QTreeWidgetItem::takeChildren()
         }
         removed = children;
         children.clear(); // detach
-        if (model) model->endRemoveItems();
+        if (model && !model->getCustomChange()) model->endRemoveItems();
     }
     return removed;
 }
@@ -2549,6 +2562,36 @@ QTreeWidget::QTreeWidget(QWidget *parent)
 
 QTreeWidget::~QTreeWidget()
 {
+}
+
+void QTreeWidget::setCustomChange(bool bInCustomChange)
+{
+	Q_D(const QTreeWidget);
+	d->treeModel()->setCustomChange(bInCustomChange);
+}
+
+void QTreeWidget::customBeginInsertChild(int first, int last)
+{
+	Q_D(const QTreeWidget);
+	d->treeModel()->customBeginInsertRows(QModelIndex(), first, last);
+}
+
+void QTreeWidget::customEndInsertChild()
+{
+	Q_D(const QTreeWidget);
+	d->treeModel()->customEndInsertRows();
+}
+
+void QTreeWidget::customBeginRemoveChild(int first, int last)
+{
+	Q_D(const QTreeWidget);
+	d->treeModel()->customBeginRemoveRows(QModelIndex(), first, last);
+}
+
+void QTreeWidget::customEndRemoveChild()
+{
+	Q_D(const QTreeWidget);
+	d->treeModel()->customEndRemoveRows();
 }
 
 /*

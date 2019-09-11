@@ -203,6 +203,15 @@ public:
 
     QListWidgetItem *item(int row) const;
     int row(const QListWidgetItem *item) const;
+
+	void setCustomChange(bool bInCustomChange);
+
+	//last = first + count - 1
+	void customBeginInsertRows(int first, int last);
+	void customEndInsertRows();
+	void customBeginRemoveRows(int first, int last);
+	void customEndRemoveRows();
+
     void insertItem(int row, QListWidgetItem *item);
     void insertItem(int row, const QString &label);
     void insertItems(int row, const QStringList &labels);

@@ -207,6 +207,8 @@ public:
 
     void setIndexWidget(const QModelIndex &index, QWidget *widget);
     QWidget *indexWidget(const QModelIndex &index) const;
+    
+    virtual bool removeWidgetAction(QWidget *widget) { return false; }
 
     void setItemDelegateForRow(int row, QAbstractItemDelegate *delegate);
     QAbstractItemDelegate *itemDelegateForRow(int row) const;

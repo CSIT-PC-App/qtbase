@@ -40,6 +40,7 @@
 #include <QtGui/QPainter>
 #include <private/qhighdpiscaling_p.h>
 #include <private/qimage_p.h>
+#include <QVariant>
 
 #include <QtCore/QDebug>
 
@@ -81,9 +82,20 @@ void QWindowsBackingStore::flush(QWindow *window, const QRegion &region,
     QWindowsWindow *rw = QWindowsWindow::baseWindowOf(window);
 
 #ifndef Q_OS_WINCE
+	typedef void(*OSDDrawFunc)(const QWindow* window, QImage& image);
+	QVariant var = window->property("drawFunc");
+	if (var.isValid())
+	{
+		OSDDrawFunc func = (OSDDrawFunc)var.toInt();
+		if (func != NULL)
+		{
+			func(window, m_image->image());
+			return;
+		}
+	}
     const bool hasAlpha = rw->format().hasAlpha();
     const Qt::WindowFlags flags = window->flags();
-    if ((flags & Qt::FramelessWindowHint) && QWindowsWindow::setWindowLayered(rw->handle(), flags, hasAlpha, rw->opacity()) && hasAlpha) {
+    if (rw->isLayered() || ((flags & Qt::FramelessWindowHint) && QWindowsWindow::setWindowLayered(rw->handle(), flags, hasAlpha, rw->opacity()) && hasAlpha)) {
         // Windows with alpha: Use blend function to update.
         QRect r = QHighDpi::toNativePixels(window->frameGeometry(), window);
         QPoint frameOffset(QHighDpi::toNativePixels(QPoint(window->frameMargins().left(), window->frameMargins().top()),

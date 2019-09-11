@@ -258,6 +258,14 @@ public:
     explicit QTreeWidget(QWidget *parent = Q_NULLPTR);
     ~QTreeWidget();
 
+	void setCustomChange(bool bInCustomChange);
+
+	//last = first + count - 1
+	void customBeginInsertChild(int first, int last);
+	void customEndInsertChild();
+	void customBeginRemoveChild(int first, int last);
+	void customEndRemoveChild();
+
     int columnCount() const;
     void setColumnCount(int columns);
 

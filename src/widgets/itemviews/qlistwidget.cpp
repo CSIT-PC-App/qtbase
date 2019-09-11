@@ -92,11 +92,17 @@ void QListModel::remove(QListWidgetItem *item)
         return;
     int row = items.indexOf(item); // ### use index(item) - it's faster
     Q_ASSERT(row != -1);
-    beginRemoveRows(QModelIndex(), row, row);
+	if (!m_bInCustomChange)
+	{
+		beginRemoveRows(QModelIndex(), row, row);
+	}
     items.at(row)->d->theid = -1;
     items.at(row)->view = 0;
     items.removeAt(row);
-    endRemoveRows();
+	if (!m_bInCustomChange)
+	{
+		endRemoveRows();
+	}
 }
 
 void QListModel::insert(int row, QListWidgetItem *item)
@@ -117,10 +123,16 @@ void QListModel::insert(int row, QListWidgetItem *item)
         else if (row > items.count())
             row = items.count();
     }
-    beginInsertRows(QModelIndex(), row, row);
+	if (!m_bInCustomChange)
+	{
+		beginInsertRows(QModelIndex(), row, row);
+	}
     items.insert(row, item);
     item->d->theid = row;
-    endInsertRows();
+	if (!m_bInCustomChange)
+	{ 
+		endInsertRows();
+	}
 }
 
 void QListModel::insert(int row, const QStringList &labels)
@@ -135,19 +147,26 @@ void QListModel::insert(int row, const QStringList &labels)
             QListWidgetItem *item = new QListWidgetItem(labels.at(i));
             insert(row, item);
         }
-    } else {
-        if (row < 0)
-            row = 0;
-        else if (row > items.count())
-            row = items.count();
-        beginInsertRows(QModelIndex(), row, row + count - 1);
+	}
+	else {
+		if (row < 0)
+			row = 0;
+		else if (row > items.count())
+			row = items.count();
+		if (!m_bInCustomChange)
+		{
+			beginInsertRows(QModelIndex(), row, row + count - 1);
+		}
         for (int i = 0; i < count; ++i) {
             QListWidgetItem *item = new QListWidgetItem(labels.at(i));
             item->d->theid = row;
             item->view = qobject_cast<QListWidget*>(QObject::parent());
             items.insert(row++, item);
         }
-        endInsertRows();
+		if (!m_bInCustomChange)
+		{
+			endInsertRows();
+		}
     }
 }
 
@@ -156,11 +175,17 @@ QListWidgetItem *QListModel::take(int row)
     if (row < 0 || row >= items.count())
         return 0;
 
-    beginRemoveRows(QModelIndex(), row, row);
+	if (!m_bInCustomChange)
+	{
+		beginRemoveRows(QModelIndex(), row, row);
+	}
     items.at(row)->d->theid = -1;
     items.at(row)->view = 0;
     QListWidgetItem *item = items.takeAt(row);
-    endRemoveRows();
+	if (!m_bInCustomChange)
+	{
+		endRemoveRows();
+	}
     return item;
 }
 
@@ -242,7 +267,10 @@ bool QListModel::insertRows(int row, int count, const QModelIndex &parent)
     if (count < 1 || row < 0 || row > rowCount() || parent.isValid())
         return false;
 
-    beginInsertRows(QModelIndex(), row, row + count - 1);
+	if (!m_bInCustomChange)
+	{
+		beginInsertRows(QModelIndex(), row, row + count - 1);
+	}
     QListWidget *view = qobject_cast<QListWidget*>(QObject::parent());
     QListWidgetItem *itm = 0;
 
@@ -253,7 +281,10 @@ bool QListModel::insertRows(int row, int count, const QModelIndex &parent)
         items.insert(r, itm);
     }
 
-    endInsertRows();
+	if (!m_bInCustomChange)
+	{
+		endInsertRows();
+	}
     return true;
 }
 
@@ -262,7 +293,10 @@ bool QListModel::removeRows(int row, int count, const QModelIndex &parent)
     if (count < 1 || row < 0 || (row + count) > rowCount() || parent.isValid())
         return false;
 
-    beginRemoveRows(QModelIndex(), row, row + count - 1);
+	if (!m_bInCustomChange)
+	{
+		beginRemoveRows(QModelIndex(), row, row + count - 1);
+	}
     QListWidgetItem *itm = 0;
     for (int r = row; r < row + count; ++r) {
         itm = items.takeAt(row);
@@ -270,7 +304,10 @@ bool QListModel::removeRows(int row, int count, const QModelIndex &parent)
         itm->d->theid = -1;
         delete itm;
     }
-    endRemoveRows();
+	if (!m_bInCustomChange)
+	{
+		endRemoveRows();
+	}
     return true;
 }
 
@@ -1375,6 +1412,35 @@ int QListWidget::row(const QListWidgetItem *item) const
     return d->listModel()->index(const_cast<QListWidgetItem*>(item)).row();
 }
 
+void QListWidget::setCustomChange(bool bInCustomChange)
+{
+	Q_D(QListWidget);
+	d->listModel()->setCustomChange(bInCustomChange);
+}
+
+void QListWidget::customBeginInsertRows(int first, int last)
+{
+	Q_D(QListWidget);
+	d->listModel()->customBeginInsertRows(QModelIndex(), first, last);
+}
+
+void QListWidget::customEndInsertRows()
+{
+	Q_D(QListWidget);
+	d->listModel()->customEndInsertRows();
+}
+
+void QListWidget::customBeginRemoveRows(int first, int last)
+{
+	Q_D(QListWidget);
+	d->listModel()->customBeginRemoveRows(QModelIndex(), first, last);
+}
+
+void QListWidget::customEndRemoveRows()
+{
+	Q_D(QListWidget);
+	d->listModel()->customEndRemoveRows();
+}
 
 /*!
     Inserts the \a item at the position in the list given by \a row.

@@ -275,6 +275,16 @@ protected Q_SLOTS:
     // Qt 6: Make virtual
     void resetInternalData();
 
+public:
+	void setCustomChange(bool bInCustomChange);
+	bool getCustomChange();
+
+	void customBeginInsertRows(const QModelIndex &parent, int first, int last);
+	void customEndInsertRows();
+
+	void customBeginRemoveRows(const QModelIndex &parent, int first, int last);
+	void customEndRemoveRows();
+
 protected:
     QAbstractItemModel(QAbstractItemModelPrivate &dd, QObject *parent = Q_NULLPTR);
 
@@ -324,6 +334,9 @@ protected:
         doSetRoleNames(theRoleNames);
     }
 #endif
+
+protected:
+	bool m_bInCustomChange;
 
 private:
     void doSetRoleNames(const QHash<int,QByteArray> &roleNames);
