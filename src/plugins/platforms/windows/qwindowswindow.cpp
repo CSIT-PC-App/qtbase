@@ -1877,12 +1877,13 @@ void QWindowsWindow::checkForScreenChanged(ScreenChangeMode mode)
     if (newScreen == nullptr || newScreen == currentScreen)
         return;
     // For screens with different DPI: postpone until WM_DPICHANGE
-    if (mode == FromGeometryChange
+	// Check on currentScreen as it can be 0 when resuming a session (QTBUG-80436).
+    if (mode == FromGeometryChange && currentScreen != nullptr
         && !equalDpi(currentScreen->logicalDpi(), newScreen->logicalDpi())) {
         return;
     }
     qCDebug(lcQpaWindows).noquote().nospace() << __FUNCTION__
-        << ' ' << window() << " \"" << currentScreen->name()
+        << ' ' << window() << " \"" << (currentScreen ? currentScreen->name() : QString())
         << "\"->\"" << newScreen->name() << '"';
     if (mode == FromGeometryChange)
         setFlag(SynchronousGeometryChangeEvent);
@@ -2360,6 +2361,7 @@ void QWindowsWindow::setFullFrameMargins(const QMargins &newMargins)
 
 void QWindowsWindow::updateFullFrameMargins()
 {
+    return;
     // Normally obtained from WM_NCCALCSIZE
     const auto systemMargins = testFlag(DisableNonClientScaling)
         ? QWindowsGeometryHint::frameOnPrimaryScreen(m_data.hwnd)

@@ -3220,7 +3220,11 @@ void QAbstractItemView::setIndexWidget(const QModelIndex &index, QWidget *widget
         d->persistent.remove(oldWidget);
         d->removeEditor(oldWidget);
         oldWidget->removeEventFilter(this);
-        oldWidget->deleteLater();
+
+        if (!removeWidgetAction(oldWidget))
+        {
+            oldWidget->deleteLater();
+        }
     }
     if (widget) {
         widget->setParent(viewport());

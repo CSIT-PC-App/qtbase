@@ -287,6 +287,8 @@ constexpr backwards_t<R> backwards(R&& r) { return {std::forward<R>(r)}; }
 
 QCALayerBackingStore::QCALayerBackingStore(QWindow *window)
     : QPlatformBackingStore(window)
+	//video GPU Render , outside flush
+	, m_pDataImageOutside(NULL)
 {
     qCDebug(lcQpaBackingStore) << "Creating QCALayerBackingStore for" << window;
     m_buffers.resize(1);
@@ -294,6 +296,13 @@ QCALayerBackingStore::QCALayerBackingStore(QWindow *window)
 
 QCALayerBackingStore::~QCALayerBackingStore()
 {
+	//video GPU Render , outside flush
+	m_imageOutside = QImage();
+	if(NULL != m_pDataImageOutside)
+	{
+		delete []m_pDataImageOutside;
+		m_pDataImageOutside = NULL;
+	}
 }
 
 void QCALayerBackingStore::resize(const QSize &size, const QRegion &staticContents)
@@ -454,6 +463,12 @@ void QCALayerBackingStore::flush(QWindow *flushedWindow, const QRegion &region, 
 
     if (!prepareForFlush())
         return;
+
+	//video GPU Render , outside flush
+	if(	outsideFlush(flushedWindow, region, offset) )
+	{
+		return;
+	}
 
     QMacAutoReleasePool pool;
 
@@ -644,6 +659,98 @@ QImage *QCALayerBackingStore::GraphicsBuffer::asImage()
         "IOSurfaces should have have a fixed location in memory once created");
 
     return &m_image;
+}
+
+//video GPU Render , outside flush
+bool QCALayerBackingStore::outsideFlush(QWindow *flushedWindow, const QRegion &region, const QPoint &offset)
+{
+	///////////test Flush Enable ////////////////
+	typedef bool(*ExternalTestFlushEnableFunc)(QWindow* pFlushWindow);
+	QVariant varTestFlushEnable = flushedWindow->property("tfef");
+	if(!varTestFlushEnable.isValid())
+	{
+		return false;
+	}
+	
+	ExternalTestFlushEnableFunc pTestFlushEnableFunc = (ExternalTestFlushEnableFunc)varTestFlushEnable.toULongLong();
+	if(NULL == pTestFlushEnableFunc)
+	{
+		return false;
+	}
+	
+	//Flush Disable
+	if(!pTestFlushEnableFunc(flushedWindow))
+	{
+		return false;
+	}
+	
+	///////////////////////////// flush Image ///////////////
+    typedef bool(*ExternalDrawFunc)(WId winId, QImage& image, QRect br);
+    QVariant var = flushedWindow->property("externaldrawfunc");
+    if (!var.isValid())
+    {
+		return false;
+	}
+
+    ExternalDrawFunc func = (ExternalDrawFunc)var.toULongLong();
+	if(NULL == func)
+	{
+		return false;
+	}
+
+	if (QPlatformGraphicsBuffer *graphicsBuffer = this->graphicsBuffer()) 
+	{
+		if(graphicsBuffer->lock(QPlatformGraphicsBuffer::SWReadAccess))
+		{
+		    if (!(graphicsBuffer->isLocked() & QPlatformGraphicsBuffer::SWReadAccess))
+				return true;
+
+			QSize size = graphicsBuffer->size();
+			QImage::Format imageformat = QImage::toImageFormat(graphicsBuffer->format());
+
+			int imageLen = size.height() * graphicsBuffer->bytesPerLine();
+			//image info change
+			if( (m_imageOutside.width() != size.width())
+			|| (m_imageOutside.height() != size.height())
+			|| (m_imageOutside.bytesPerLine() !=  graphicsBuffer->bytesPerLine())
+			|| (m_imageOutside.format() != imageformat) )
+			{
+				m_imageOutside = QImage();
+				if(NULL != m_pDataImageOutside)
+				{
+					delete []m_pDataImageOutside;
+					m_pDataImageOutside = NULL;
+				}
+
+				// new data
+				// int imageLen = size.height() * graphicsBuffer->bytesPerLine();
+				m_pDataImageOutside = new unsigned char[imageLen];
+				m_imageOutside = QImage(m_pDataImageOutside, size.width(), size.height(), graphicsBuffer->bytesPerLine(), imageformat);
+			}
+
+			if(NULL != graphicsBuffer->data())
+			{
+				::memcpy((unsigned char*)m_imageOutside.constBits(), (unsigned char*)graphicsBuffer->data(), imageLen);
+			}
+		
+			graphicsBuffer->unlock();
+		}
+		else
+		{
+			return true;
+		}
+	
+	}
+	else
+	{
+		return true;
+	}
+
+	const QRect br = region.boundingRect();
+
+	func(flushedWindow->winId(), m_imageOutside, br);
+
+	return true;
 }
 
 QT_END_NAMESPACE

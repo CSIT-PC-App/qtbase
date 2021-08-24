@@ -84,6 +84,14 @@ public:
     QImage toImage() const override;
     QPlatformGraphicsBuffer *graphicsBuffer() const override;
 
+	//video GPU Render , outside flush
+	bool outsideFlush(QWindow *flushedWindow, const QRegion &region, const QPoint &offset);
+
+private:
+	//video GPU Render , outside flush
+	QImage m_imageOutside;
+	unsigned char* m_pDataImageOutside;
+
 private:
     QSize m_requestedSize;
     QRegion m_paintedRegion;

@@ -136,8 +136,11 @@ void QCocoaInputContext::focusObjectChanged(QObject *focusObject)
             return;
 
         if (NSTextInputContext *ctxt = [NSTextInputContext currentInputContext]) {
-            [ctxt discardMarkedText];
-            [view cancelComposingText];
+            id<NSTextInputClient> focusView = ctxt.client;
+            if (view != static_cast<QNSView*>(focusView)) {
+                [ctxt discardMarkedText];
+                [view cancelComposingText];
+            }
         }
     } else {
         mWindow = QGuiApplication::focusWindow();

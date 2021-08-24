@@ -62,14 +62,21 @@ public:
     void resize(const QSize &size, const QRegion &r) override;
     bool scroll(const QRegion &area, int dx, int dy) override;
     void beginPaint(const QRegion &) override;
+	void endPaint() override;
 
     HDC getDC() const;
 
     QImage toImage() const override;
 
 private:
+	bool drawForceGround();
+
+private:
     QScopedPointer<QWindowsNativeImage> m_image;
     bool m_alphaNeedsFill;
+
+	bool m_bBeginPaint;
+	QRegion m_regionPaint;
 };
 
 QT_END_NAMESPACE

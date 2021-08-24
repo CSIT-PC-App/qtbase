@@ -46,6 +46,7 @@
 #include <QtFontDatabaseSupport/private/qwindowsnativeimage_p.h>
 #include <private/qhighdpiscaling_p.h>
 #include <private/qimage_p.h>
+#include <QVariant>
 
 #include <QtCore/qdebug.h>
 
@@ -60,7 +61,8 @@ QT_BEGIN_NAMESPACE
 
 QWindowsBackingStore::QWindowsBackingStore(QWindow *window) :
     QPlatformBackingStore(window),
-    m_alphaNeedsFill(false)
+    m_alphaNeedsFill(false),
+	m_bBeginPaint(false)
 {
     qCDebug(lcQpaBackingStore) << __FUNCTION__ << this << window;
 }
@@ -87,9 +89,21 @@ void QWindowsBackingStore::flush(QWindow *window, const QRegion &region,
     QWindowsWindow *rw = QWindowsWindow::windowsWindowOf(window);
     Q_ASSERT(rw);
 
+    typedef void(*OSDDrawFunc)(const QWindow* window, QImage& image);
+    QVariant var = window->property("drawFunc");
+    if (var.isValid())
+    {
+        OSDDrawFunc func = (OSDDrawFunc)var.toInt();
+        if (func != NULL)
+        {
+            func(window, m_image->image());
+            return;
+        }
+    }
+    
     const bool hasAlpha = rw->format().hasAlpha();
     const Qt::WindowFlags flags = window->flags();
-    if ((flags & Qt::FramelessWindowHint) && QWindowsWindow::setWindowLayered(rw->handle(), flags, hasAlpha, rw->opacity()) && hasAlpha) {
+    if (rw->isLayered() || ((flags & Qt::FramelessWindowHint) && QWindowsWindow::setWindowLayered(rw->handle(), flags, hasAlpha, rw->opacity()) && hasAlpha)) {
         // Windows with alpha: Use blend function to update.
         QRect r = QHighDpi::toNativePixels(window->frameGeometry(), window);
         QPoint frameOffset(QHighDpi::toNativePixels(QPoint(window->frameMargins().left(), window->frameMargins().top()),
@@ -111,6 +125,20 @@ void QWindowsBackingStore::flush(QWindow *window, const QRegion &region,
                           r.width(), r.height(), dirtyRect.width(), dirtyRect.height(),
                           dirtyRect.x(), dirtyRect.y());
     } else {
+       typedef bool(*ExternalDrawFunc)(WId winId, QImage& image, QRect br);
+        QVariant var = window->property("externaldrawfunc");
+        if (var.isValid())
+        {
+            ExternalDrawFunc func = (ExternalDrawFunc)var.toInt();
+            if (NULL != func)
+            {
+                if(func(window->winId(), m_image->image(), br))
+                {
+                    return;
+                }
+            }
+        }
+
         const HDC dc = rw->getDC();
         if (!dc) {
             qErrnoWarning("%s: GetDC failed", __FUNCTION__);
@@ -192,6 +220,9 @@ bool QWindowsBackingStore::scroll(const QRegion &area, int dx, int dy)
 
 void QWindowsBackingStore::beginPaint(const QRegion &region)
 {
+	m_bBeginPaint = true;
+	m_regionPaint = region;
+
     if (QWindowsContext::verbose > 1)
         qCDebug(lcQpaBackingStore) <<__FUNCTION__ << region;
 
@@ -202,6 +233,21 @@ void QWindowsBackingStore::beginPaint(const QRegion &region)
         for (const QRect &r : region)
             p.fillRect(r, blank);
     }
+}
+
+void QWindowsBackingStore::endPaint()
+{
+	if (!m_bBeginPaint)
+	{
+		return;
+	}
+
+	m_bBeginPaint = false;
+
+	//所有窗口绘制结束后 ， 在外部再处理
+	drawForceGround();	
+
+	m_regionPaint = QRegion();
 }
 
 HDC QWindowsBackingStore::getDC() const
@@ -218,6 +264,35 @@ QImage QWindowsBackingStore::toImage() const
         return QImage();
     }
     return m_image.data()->image();
+}
+
+bool QWindowsBackingStore::drawForceGround()
+{
+	if (m_regionPaint.isNull() || m_regionPaint.isEmpty())
+	{
+		return false;
+	}
+
+	QWindow * pWin = this->window();
+	if (!pWin)
+	{
+		return false;
+	}
+
+	QVariant varForeground = pWin->property("drawForegroundFunc");
+	if (!varForeground.isValid())
+	{
+		return false;
+	}
+
+	typedef bool(*OSDDrawForegroundFunc)(const QWindow* window, QImage& image, const QRegion& regionTemp);
+	OSDDrawForegroundFunc func = (OSDDrawForegroundFunc)varForeground.toInt();
+	if (nullptr == func)
+	{
+		return false;
+	}
+
+	return func(pWin, m_image->image(), m_regionPaint);
 }
 
 QT_END_NAMESPACE
